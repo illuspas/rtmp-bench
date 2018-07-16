@@ -1,6 +1,6 @@
 {
   "name": "rtmp-bench",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "rtmp-play / rtmp-publish load test tool.",
   "bin": {
     "rtmp-bench": "./bin/rtmp_bench"
