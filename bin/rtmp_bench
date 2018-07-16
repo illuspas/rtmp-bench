@@ -1,0 +1,132 @@
+#!/usr/bin/env node
+const fs = require('fs');
+const NodeRtmpClient = require('../lib/node_rtmp_client');
+const argv = require('minimist')(process.argv.slice(2), {
+  alias: {
+    'help': 'h',
+    'file': 'f',
+    'clients': 'c',
+    'rtmpurl': 'r',
+    'debug': 'd'
+  },
+  string: [
+    'file',
+    'clients',
+    'rtmpurl',
+  ],
+  boolean: [
+    'debug'
+  ],
+  default: {
+    'debug': false,
+    'clients': 1,
+  }
+});
+
+let sessions = new Set();
+let success = 0;
+
+if (argv.help || !argv.r) {
+  console.log("Usage: \nrtmp-bench -r rtmp://127.0.0.1/live/stream -c 1000");
+  console.log("rtmp-bench -f video.flv -r rtmp://127.0.0.1/live/stream -c 100");
+  console.log("  rtmp-bench -h // print help information");
+  console.log("  rtmp-bench -f // Publish a stream with a FLV file input");
+  console.log("  rtmp-bench -r // The load test url for each client to play or publish");
+  console.log("  rtmp-bench -c // The concurrency client to start to request. defaut: 1");
+  console.log("  rtmp-bench -d // print log");
+  process.exit(0);
+}
+
+function asyncSleep(ms) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve();
+    }, ms);
+  });
+}
+
+if (argv.f) {
+  fs.readFile(argv.f, (err, data) => {
+    if (err) {
+      console.error(err);
+      return;
+    } else {
+      let sleep = 0;
+      let pos = 0;
+      let header = data.slice(0, 3);
+      if (header.toString() != 'FLV') {
+        console.error('Error,the input file is not a FLV format.');
+        return;
+      }
+
+      for (let c = 0; c < argv.c; c++) {
+        let rtmp = new NodeRtmpClient(argv.r + '_' + c);
+        sessions.add(rtmp);
+        rtmp.on('status', (status) => {
+          if (argv.d) {
+            console.log('client ', c, status);
+          }
+          if (status.code === 'NetStream.Publish.Start') {
+            success++;
+          }
+        });
+        rtmp.startPush();
+      }
+
+      pos = 13;
+      const parser = async () => {
+        console.log('Wait 10s for the connection to be created.');
+        await asyncSleep(10000);
+        console.log(`totle=[${sessions.size}] success=[${success}] error=[${sessions.size - success}]`);
+        if(success == 0) {
+          console.error('All connections failed and cannot start');
+          return;
+        } else{
+          console.log('Start publish.');
+        }
+        while (pos < data.length) {
+          let headerBuf = data.slice(pos, pos + 11);
+          let type = headerBuf[0];
+          let size = headerBuf.readUIntBE(1, 3);
+          let time = headerBuf[4] << 16 | headerBuf[5] << 8 | headerBuf[6] | headerBuf[7] << 24;
+          // console.log(type, size, time);
+          pos += 11;
+          let tagn = data.slice(pos, pos + size);
+          pos += size;
+          let prev = data.slice(pos, pos + 4).readUInt32BE();
+          if (size + 11 != prev) {
+            console.error('File parser error.');
+            break;
+          }
+          pos += 4;
+          await asyncSleep(time - sleep);
+          sleep = time;
+          for (let rtmp of sessions) {
+            switch (type) {
+              case 8:
+                rtmp.pushAudio(tagn, time);
+                break;
+              case 9:
+                rtmp.pushVideo(tagn, time);
+              case 18:
+                // rtmp.pushScript(tagn, time);
+                break;
+            }
+          }
+        }
+      }
+      parser();
+    }
+  });
+
+} else {
+  for (let c = 0; c < argv.c; c++) {
+    let rtmp = new NodeRtmpClient(argv.r);
+    rtmp.on('status', (status) => {
+      if (argv.d) {
+        console.log('client ', c, status);
+      }
+    });
+    rtmp.startPull();
+  }
+}
