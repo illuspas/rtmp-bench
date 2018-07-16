@@ -1,17 +1,35 @@
 {
   "name": "rtmp-bench",
   "version": "0.0.6",
-  "description": "A rtmp bench tool",
+  "description": "rtmp-play / rtmp-publish load test tool.",
   "bin": {
     "rtmp-bench": "./bin/rtmp_bench"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/illuspas/rtmp-bench.git"
+  },
+  "bugs": {
+    "url": "https://github.com/illuspas/bench/issues"
+  },
+  "keywords": [
+    "flv",
+    "rtmp",
+    "test",
+    "benchmark",
+    "performance"
+  ],
+  "homepage": "https://github.com/illuspas/bench#readme",
   "author": "Mingliang Chen",
   "license": "MIT",
   "dependencies": {
     "chalk": "^2.4.1",
     "minimist": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=8.0.0"
   }
 }
